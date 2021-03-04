@@ -46,6 +46,8 @@ RTC_HandleTypeDef hrtc;
 
 uint8_t readButtonPressed = 0;
 
+uint8_t alarmInterruptFired = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -100,7 +102,16 @@ int main(void)
   {
 	  if(readButtonPressed == 1)
 	  {
+		  readButtonPressed = 0;
 		  readTimeAndDate();
+	  }
+
+	  if(alarmInterruptFired == 1)
+	  {
+		  alarmInterruptFired = 0;
+		  HAL_GPIO_WritePin(buttongpio_GPIO_Port, buttongpio_Pin, GPIO_PIN_SET);
+		  HAL_Delay(2000);
+		  HAL_GPIO_WritePin(buttongpio_GPIO_Port, buttongpio_Pin, GPIO_PIN_RESET);
 	  }
     /* USER CODE END WHILE */
 
@@ -168,6 +179,7 @@ static void MX_RTC_Init(void)
 
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -211,8 +223,27 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
+  /** Enable the Alarm A
+  */
+  sAlarm.AlarmTime.Hours = 1;
+  sAlarm.AlarmTime.Minutes = 12;
+  sAlarm.AlarmTime.Seconds = 9;
+  sAlarm.AlarmTime.SubSeconds = 0;
+  sAlarm.AlarmTime.TimeFormat = RTC_HOURFORMAT12_PM;
+  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  sAlarm.AlarmMask = RTC_ALARMMASK_DATEWEEKDAY|RTC_ALARMMASK_HOURS;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm_IT(&hrtc, &sAlarm, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN RTC_Init 2 */
-
+  HAL_NVIC_SetPriority(RTC_IRQn, 3, 0);
+  HAL_NVIC_EnableIRQ(RTC_IRQn);
   /* USER CODE END RTC_Init 2 */
 
 }
@@ -253,9 +284,33 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+
+void HAL_RTC_AlarmAEventCallback(RTC_HandleTypeDef *hrtc)
+{
+	alarmInterruptFired = 1;
+}
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	readButtonPressed = 1;
+}
+
+void RTC_AlarmConfig(void)
+{
+	RTC_AlarmTypeDef alarmA;
+
+	//xx:45:09
+	alarmA.Alarm = RTC_ALARM_A;
+	alarmA.AlarmTime.Minutes = 45;
+	alarmA.AlarmTime.Seconds = 9;
+	alarmA.AlarmMask = RTC_ALARMMASK_HOURS | RTC_ALARMMASK_DATEWEEKDAY;
+	alarmA.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_NONE;
+
+	if (HAL_RTC_SetAlarm_IT(&hrtc, &alarmA, RTC_FORMAT_BIN) != HAL_OK)
+	{
+		Error_Handler();
+	}
 }
 
 static void readTimeAndDate(void)
@@ -263,8 +318,13 @@ static void readTimeAndDate(void)
 	RTC_TimeTypeDef RTC_TimeRead;
 	RTC_DateTypeDef RTC_DateRead;
 
+	//MX_RTC_Init();
+
 	HAL_RTC_GetTime(&hrtc, &RTC_TimeRead, RTC_FORMAT_BIN);
 	HAL_RTC_GetDate(&hrtc, &RTC_DateRead, RTC_FORMAT_BIN);
+
+//	RTC_AlarmConfig();
+
 }
 /* USER CODE END 4 */
 
